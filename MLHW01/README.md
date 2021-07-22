@@ -1,4 +1,4 @@
-# HW1: Regression
+# HW01: Regression
 
 We use SGD or Adam to find a function that predicts the third day of people infected by SARS-CoV-2
 
