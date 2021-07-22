@@ -18,7 +18,7 @@ The training data is the past two days of report of 40 states in US.
 
 Each 40 states is encoded in one-hot vector, with data including COVID-like illness, e.g. CLI (COVID-Like Illness), ILI (Influenza-Like Illness), behavior indicators, mental health indicators, and the tested positive cases of that day.
 
-Since we only have one known data and a test data, we must splitting training data from our known data into training set and validation set (development set). We choose # of data which is not divisible by 5, that is , `i mod 5 != 0`, to be training set; and # of data which is divisible by 5 to be validation set.
+Since we only have one known data and a test data, we must split training data from our known data into training set and validation set (development set). We choose # of data which is not divisible by 5, that is , `i mod 5 != 0`, to be training set; and # of data which is divisible by 5 to be validation set.
 
 We also try L1/L2 regularization to make lower loss.
 
