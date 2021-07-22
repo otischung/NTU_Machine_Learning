@@ -1,0 +1,6 @@
+.idea
+timit_11
+.vscode
+model.ckpt
+prediction.csv
+sampleSubmission.csv
