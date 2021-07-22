@@ -4,5 +4,4 @@ all: ./main.py
 	python3 main.py
 
 clean:
-	rm -f prediction.csv
-
+	rm -f model.ckpt prediction.csv
