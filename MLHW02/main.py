@@ -40,7 +40,7 @@ class TIMITDataset(Dataset):
 
 # Split the labeled data into a training set and a validation set.
 # You can modify the variable VAL_RATIO to change the ratio of validation data.
-VAL_RATIO = 0.2
+VAL_RATIO = 0.05
 
 percent = int(train.shape[0] * (1 - VAL_RATIO))
 train_x, train_y, val_x, val_y = train[:percent], train_label[:percent], train[percent:], train_label[percent:]
@@ -54,12 +54,6 @@ val_set = TIMITDataset(val_x, val_y)
 train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True)  # only shuffle the training data
 val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False)
 
-# Cleanup the unneeded variables to save memory.
-# notes: if you need to use these variables later, then you may remove this block or clean up unneeded variables later
-# the data size is quite huge, so be aware of memory usage in colab
-del train, train_label, train_x, train_y, val_x, val_y
-gc.collect()
-
 ''' Create Model '''
 
 
@@ -67,12 +61,12 @@ gc.collect()
 class Classifier(nn.Module):
     def __init__(self):
         super(Classifier, self).__init__()
-        self.layer1 = nn.Linear(429, 1024)
-        self.layer2 = nn.Linear(1024, 512)
-        self.layer3 = nn.Linear(512, 128)
+        self.layer1 = nn.Linear(429, 512)
+        self.layer2 = nn.Linear(512, 256)
+        self.layer3 = nn.Linear(256, 128)
         self.out = nn.Linear(128, 39)
 
-        self.act_fn = nn.Sigmoid()
+        self.act_fn = nn.ReLU()
 
     def forward(self, x):
         x = self.layer1(x)
@@ -118,7 +112,7 @@ print(f'DEVICE: {device}')
 
 # training parameters
 num_epoch = 20  # number of training epoch
-learning_rate = 0.0001  # learning rate
+learning_rate = 0.001  # learning rate
 
 # the path where checkpoint saved
 model_path = './model.ckpt'
@@ -126,61 +120,65 @@ model_path = './model.ckpt'
 # create model, define a loss function, and optimizer
 model = Classifier().to(device)
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 # start training
 
 best_acc = 0.0
-for epoch in range(num_epoch):
-    train_acc = 0.0
-    train_loss = 0.0
-    val_acc = 0.0
-    val_loss = 0.0
+try:
+    for epoch in range(num_epoch):
+        train_acc = 0.0
+        train_loss = 0.0
+        val_acc = 0.0
+        val_loss = 0.0
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate / (2 ** (epoch / 2)))  # Adaptive learning rate
 
-    # training
-    model.train()  # set the model to training mode
-    for i, data in enumerate(train_loader):
-        inputs, labels = data
-        inputs, labels = inputs.to(device), labels.to(device)
-        optimizer.zero_grad()
-        outputs = model(inputs)
-        batch_loss = criterion(outputs, labels)
-        _, train_pred = torch.max(outputs, 1)  # get the index of the class with the highest probability
-        batch_loss.backward()
-        optimizer.step()
+        # training
+        model.train()  # set the model to training mode
+        for i, data in enumerate(train_loader):
+            inputs, labels = data
+            inputs, labels = inputs.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            batch_loss = criterion(outputs, labels)
+            _, train_pred = torch.max(outputs, 1)  # get the index of the class with the highest probability
+            batch_loss.backward()
+            optimizer.step()
 
-        train_acc += (train_pred.cpu() == labels.cpu()).sum().item()
-        train_loss += batch_loss.item()
+            train_acc += (train_pred.cpu() == labels.cpu()).sum().item()
+            train_loss += batch_loss.item()
 
-    # validation
-    if len(val_set) > 0:
-        model.eval()  # set the model to evaluation mode
-        with torch.no_grad():
-            for i, data in enumerate(val_loader):
-                inputs, labels = data
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
-                batch_loss = criterion(outputs, labels)
-                _, val_pred = torch.max(outputs, 1)
+        # validation
+        if len(val_set) > 0:
+            model.eval()  # set the model to evaluation mode
+            with torch.no_grad():
+                for i, data in enumerate(val_loader):
+                    inputs, labels = data
+                    inputs, labels = inputs.to(device), labels.to(device)
+                    outputs = model(inputs)
+                    batch_loss = criterion(outputs, labels)
+                    _, val_pred = torch.max(outputs, 1)
 
-                val_acc += (
-                        val_pred.cpu() == labels.cpu()).sum().item()  # get the index of the class with the highest probability
-                val_loss += batch_loss.item()
+                    val_acc += (
+                            val_pred.cpu() == labels.cpu()).sum().item()  # get the index of the class with the highest probability
+                    val_loss += batch_loss.item()
 
-            print('[{:03d}/{:03d}] Train Acc: {:3.6f} Loss: {:3.6f} | Val Acc: {:3.6f} loss: {:3.6f}'.format(
-                epoch + 1, num_epoch, train_acc / len(train_set), train_loss / len(train_loader),
-                val_acc / len(val_set), val_loss / len(val_loader)
+                print('[{:03d}/{:03d}] Train Acc: {:3.6f} Loss: {:3.6f} | Val Acc: {:3.6f} loss: {:3.6f}'.format(
+                    epoch + 1, num_epoch, train_acc / len(train_set), train_loss / len(train_loader),
+                    val_acc / len(val_set), val_loss / len(val_loader)
+                ))
+
+                # if the model improves, save a checkpoint at this epoch
+                if val_acc > best_acc:
+                    best_acc = val_acc
+                    torch.save(model.state_dict(), model_path)
+                    print('saving model with acc {:.3f}'.format(best_acc / len(val_set)))
+        else:
+            print('[{:03d}/{:03d}] Train Acc: {:3.6f} Loss: {:3.6f}'.format(
+                epoch + 1, num_epoch, train_acc / len(train_set), train_loss / len(train_loader)
             ))
-
-            # if the model improves, save a checkpoint at this epoch
-            if val_acc > best_acc:
-                best_acc = val_acc
-                torch.save(model.state_dict(), model_path)
-                print('saving model with acc {:.3f}'.format(best_acc / len(val_set)))
-    else:
-        print('[{:03d}/{:03d}] Train Acc: {:3.6f} Loss: {:3.6f}'.format(
-            epoch + 1, num_epoch, train_acc / len(train_set), train_loss / len(train_loader)
-        ))
+except KeyboardInterrupt:
+    print("stop!!!")
 
 # if not validating, save the last epoch
 if len(val_set) == 0:
@@ -215,3 +213,9 @@ with open('prediction.csv', 'w') as f:
     f.write('Id,Class\n')
     for i, y in enumerate(predict):
         f.write('{},{}\n'.format(i, y))
+
+# Cleanup the unneeded variables to save memory.
+# notes: if you need to use these variables later, then you may remove this block or clean up unneeded variables later
+# the data size is quite huge, so be aware of memory usage in colab
+del train, train_label, train_x, train_y, val_x, val_y
+gc.collect()
