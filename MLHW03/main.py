@@ -116,11 +116,11 @@ class Classifier(nn.Module):
             nn.MaxPool2d(4, 4, 0),  # [#, 256, 8, 8]
         )
         self.fc_layers = nn.Sequential(  # fc = fully-connected
-            nn.Linear(256 * 8 * 8, 256),
+            nn.Linear(256 * 8 * 8, 256),  # [#, 256]
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Linear(256, 256),  # [#, 256]
             nn.ReLU(),
-            nn.Linear(256, 11)
+            nn.Linear(256, 11)  # [#, 11]
         )
 
     def forward(self, x):
@@ -131,7 +131,7 @@ class Classifier(nn.Module):
         x = self.cnn_layers(x)
 
         # The extracted feature map must be flatten before going to fully-connected layers.
-        x = x.flatten(1)
+        x = x.flatten(1)  # [#, 16384]
 
         # The features are transformed by fully-connected layers to obtain the final logits.
         x = self.fc_layers(x)
