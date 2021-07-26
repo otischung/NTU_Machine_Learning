@@ -23,3 +23,10 @@ to prevent memory leakage.
 [ Valid | 080/080 ] loss = 3.04568, acc = 0.48516
 
 **overfitting**
+
+score: 
+
+| Private score | Public score |
+| ------------- | ------------ |
+| 0.51464       | 0.50477      |
+
