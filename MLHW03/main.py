@@ -1,4 +1,4 @@
-'''
+"""
 https://colab.research.google.com/github/ga642381/ML2021-Spring/blob/main/HW03/HW03.ipynb#scrollTo=3t2q2Th85ZUE
 Homework 3 - Convolutional Neural Network
 This is the example code of homework 3 of the machine learning course by Prof. Hung-yi Lee.
@@ -8,7 +8,7 @@ There are three levels here:
 Easy: Build a simple convolutional neural network as the baseline. (2 pts)
 Medium: Design a better architecture or adopt different data augmentations to improve the performance. (2 pts)
 Hard: Utilize provided unlabeled data to obtain better results. (2 pts)
-'''
+"""
 
 '''
 Import Packages
@@ -27,6 +27,12 @@ from torchvision.datasets import DatasetFolder
 
 # This is for the progress bar.
 from tqdm.auto import tqdm
+
+# This is for configuring CPU threads
+import multiprocessing
+
+# This is for garbage collection
+import gc
 
 '''
 Dataset, Data Loader, and Transforms
@@ -56,6 +62,8 @@ test_tfm = transforms.Compose([
 # A greater batch size usually gives a more stable gradient.
 # But the GPU memory is limited, so please adjust it carefully.
 batch_size = 128
+# threads = multiprocessing.cpu_count()
+threads = 0
 
 # Construct datasets.
 # The argument "loader" tells how torchvision reads the data.
@@ -65,8 +73,8 @@ unlabeled_set = DatasetFolder("./food-11/training/unlabeled", loader=lambda x: I
 test_set = DatasetFolder("./food-11/testing", loader=lambda x: Image.open(x), extensions="jpg", transform=test_tfm)
 
 # Construct data loaders.
-train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
-valid_loader = DataLoader(valid_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
+train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=threads, pin_memory=True)
+valid_loader = DataLoader(valid_set, batch_size=batch_size, shuffle=True, num_workers=threads, pin_memory=True)
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False)
 
 '''
@@ -107,7 +115,7 @@ class Classifier(nn.Module):
             nn.ReLU(),
             nn.MaxPool2d(4, 4, 0),
         )
-        self.fc_layers = nn.Sequential(
+        self.fc_layers = nn.Sequential(  # fc = fully-connected
             nn.Linear(256 * 8 * 8, 256),
             nn.ReLU(),
             nn.Linear(256, 256),
@@ -203,7 +211,7 @@ for epoch in range(n_epochs):
         # Construct a new dataset and a data loader for training.
         # This is used in semi-supervised learning only.
         concat_dataset = ConcatDataset([train_set, pseudo_set])
-        train_loader = DataLoader(concat_dataset, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
+        train_loader = DataLoader(concat_dataset, batch_size=batch_size, shuffle=True, num_workers=threads, pin_memory=True)
 
     # ---------- Training ----------
     # Make sure the model is in train mode before training.
@@ -241,7 +249,7 @@ for epoch in range(n_epochs):
         acc = (logits.argmax(dim=-1) == labels.to(device)).float().mean()
 
         # Record the loss and accuracy.
-        train_loss.append(loss.item())
+        train_loss.append(loss.detach().item())  # add detach()
         train_accs.append(acc)
 
     # The average loss and accuracy of the training set is the average of the recorded values.
@@ -276,7 +284,7 @@ for epoch in range(n_epochs):
         acc = (logits.argmax(dim=-1) == labels.to(device)).float().mean()
 
         # Record the loss and accuracy.
-        valid_loss.append(loss.item())
+        valid_loss.append(loss.detach().item())  # add detach()
         valid_accs.append(acc)
 
     # The average loss and accuracy for entire validation set is the average of the recorded values.
@@ -285,6 +293,7 @@ for epoch in range(n_epochs):
 
     # Print the information.
     print(f"[ Valid | {epoch + 1:03d}/{n_epochs:03d} ] loss = {valid_loss:.5f}, acc = {valid_acc:.5f}")
+    # gc.collect()  # Add garbage collection for each iteration of training loop
 
 '''
 Testing
@@ -309,10 +318,6 @@ model.eval()
 # Initialize a list to store the predictions.
 predictions = []
 
-#
-#
-#
-#
 # Iterate the testing set by batches.
 for batch in tqdm(test_loader):
     # A batch consists of image data and corresponding labels.
@@ -338,3 +343,4 @@ with open("predict.csv", "w") as f:
     # For the rest of the rows, each image id corresponds to a predicted class.
     for i, pred in enumerate(predictions):
         f.write(f"{i},{pred}\n")
+    print("The prediction has been written successfully.")
