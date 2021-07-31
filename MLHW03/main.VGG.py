@@ -45,29 +45,27 @@ Please refer to PyTorch official website for details about different transforms.
 # Please think about what kind of augmentation is helpful for food recognition.
 train_tfm = transforms.Compose([
     # Resize the image into a fixed shape (height = width = 128)
-    transforms.Resize((256, 256)),
+    transforms.Resize((224, 224)),
     # You may add some transforms here.
     transforms.RandomHorizontalFlip(),
-    transforms.RandomResizedCrop(128),
-    transforms.ColorJitter(brightness=(0.5, 1.5), contrast=(0.5, 1.5), saturation=(0.5, 1.5), hue=(-0.1, 0.1)),
-    transforms.RandomGrayscale(),
+    # transforms.RandomResizedCrop(256),
     # ToTensor() should be the last one of the transforms.
     transforms.ToTensor(),
-    # transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+    transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
 ])
 
 # We don't need augmentations in testing and validation.
 # All we need here is to resize the PIL image and transform it into Tensor.
 test_tfm = transforms.Compose([
-    transforms.Resize((128, 128)),
+    transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    # transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+    transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
 ])
 
 # Batch size for training, validation, and testing.
 # A greater batch size usually gives a more stable gradient.
 # But the GPU memory is limited, so please adjust it carefully.
-batch_size = 64
+batch_size = 16
 # threads = multiprocessing.cpu_count()
 threads = 0
 
@@ -96,7 +94,7 @@ model = torchvision.models.resnet18(pretrained=False) → This is fine.
 model = torchvision.models.resnet18(pretrained=True) → This is NOT allowed.
 '''
 # the path where checkpoint saved
-model_path = './model.ckpt'
+model_path = './model.VGG.ckpt'
 
 
 class Classifier(nn.Module):
@@ -106,29 +104,78 @@ class Classifier(nn.Module):
         # torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
         # torch.nn.MaxPool2d(kernel_size, stride, padding)
 
-        # input image size: [#, 3, 128, 128] (#: Number of inputs)
+        # input image size: [#, 3, 224, 224] (#: Number of inputs)
         self.cnn_layers = nn.Sequential(
-            nn.Conv2d(3, 64, 3, 1, 1),  # [#, 64, 128, 128]
+            nn.Conv2d(3, 64, 3, 1, 1),  # [#, 64, 224, 224]
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2, 0),  # [#, 64, 64, 64]
+            # nn.Dropout(),
+            nn.Conv2d(64, 64, 3, 1, 1),  # [#, 64, 224, 224]
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            # nn.Dropout(),
+            nn.MaxPool2d(2, 2, 0),  # [#, 64, 112, 112]
 
-            nn.Conv2d(64, 128, 3, 1, 1),  # [#, 128, 64, 64]
+            nn.Conv2d(64, 128, 3, 1, 1),  # [#, 64, 112, 112]
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2, 0),  # [#, 128, 32, 32]
+            # nn.Dropout(),
+            nn.Conv2d(128, 128, 3, 1, 1),  # [#, 128, 112, 112]
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            # nn.Dropout(),
+            nn.MaxPool2d(2, 2, 0),  # [#, 128, 56, 56]
 
-            nn.Conv2d(128, 256, 3, 1, 1),  # [#, 256, 32, 32]
+            nn.Conv2d(128, 256, 3, 1, 1),  # [#, 256, 56, 56]
             nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.MaxPool2d(4, 4, 0),  # [#, 256, 8, 8]
+            # nn.Dropout(),
+            nn.Conv2d(256, 256, 3, 1, 1),  # [#, 256, 56, 56]
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            # nn.Dropout(),
+            nn.Conv2d(256, 256, 3, 1, 1),  # [#, 256, 56, 56]
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            # nn.Dropout(),
+            nn.MaxPool2d(2, 2, 0),  # [#, 256, 28, 28]
+
+            nn.Conv2d(256, 512, 3, 1, 1),  # [#, 512, 28, 28]
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            nn.Dropout(),
+            nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 28, 28]
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            # nn.Dropout(),
+            nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 28, 28]
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            # nn.Dropout(),
+            nn.MaxPool2d(2, 2, 0),  # [#, 512, 14, 14]
+
+            nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 14, 14]
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            # nn.Dropout(),
+            nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 14, 14]
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            # nn.Dropout(),
+            nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 14, 14]
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            # nn.Dropout(),
+            nn.MaxPool2d(2, 2, 0),  # [#, 512, 7, 7]
         )
         self.fc_layers = nn.Sequential(  # fc = fully-connected
-            nn.Linear(256 * 8 * 8, 256),  # [#, 256]
+            nn.Linear(512 * 7 * 7, 4096),  # [#, 4096]
             nn.ReLU(),
-            nn.Linear(256, 256),  # [#, 256]
+            # nn.Dropout(),
+            nn.Linear(4096, 1024),  # [#, 1024]
             nn.ReLU(),
-            nn.Linear(256, 11)  # [#, 11]
+            # nn.Dropout(),
+            nn.Linear(1024, 11)  # [#, 11]
         )
 
     def forward(self, x):
@@ -200,10 +247,10 @@ model.device = device
 criterion = nn.CrossEntropyLoss()
 
 # Initialize optimizer, you may fine-tune some hyperparameters such as learning rate on your own.
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0003, weight_decay=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, weight_decay=1e-5)
 
 # The number of training epochs.
-n_epochs = 80
+n_epochs = 1000
 
 # Whether to do semi-supervised learning.
 do_semi = False
@@ -313,7 +360,7 @@ try:
 
         # gc.collect()  # Add garbage collection for each iteration of training loop
 except KeyboardInterrupt:
-    pass
+    print("stop!!!")
 '''
 Testing
 For inference, we need to make sure the model is in eval mode, and the order of the dataset should not be shuffled ("shuffle=False" in test_loader).
@@ -357,7 +404,7 @@ for batch in tqdm(test_loader):
     predictions.extend(logits.argmax(dim=-1).cpu().numpy().tolist())
 
 # Save predictions into the file.
-with open("predict.csv", "w") as f:
+with open("predict.VGG.csv", "w") as f:
     # The first row must be "Id, Category"
     print('Using model with best validation loss {:.5f} and accuracy {:.5f} to make prediction.'.format(best_loss, best_acc))
     f.write("Id,Category\n")

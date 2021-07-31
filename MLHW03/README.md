@@ -30,3 +30,34 @@ score:
 | ------------- | ------------ |
 | 0.51464       | 0.50477      |
 
+## ver.2 log
+
+Add augementation of training data
+
+```python
+train_tfm = transforms.Compose([
+    # Resize the image into a fixed shape (height = width = 128)
+    transforms.Resize((256, 256)),
+    # You may add some transforms here.
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomResizedCrop(128),
+    transforms.ColorJitter(brightness=(0.5, 1.5), contrast=(0.5, 1.5), saturation=(0.5, 1.5), hue=(-0.1, 0.1)),
+    transforms.RandomGrayscale(),
+    # ToTensor() should be the last one of the transforms.
+    transforms.ToTensor(),
+    # transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+])
+```
+
+The result is
+
+[ Train | 080/080 ] loss = 1.42164, acc = 0.51562
+[ Valid | 080/080 ] loss = 1.42243, acc = 0.51051
+Using model with best validation loss 1.263 and accuracy 0.574 to make prediction.
+
+score: 
+
+| Private score | Public score |
+| ------------- | ------------ |
+| 0.53078       | 0.55256      |
+

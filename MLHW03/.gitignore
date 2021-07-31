@@ -1,5 +1,7 @@
 .idea
 .vscode
 food-11
+model.VGG.ckpt
 model.ckpt
+predict.VGG.csv
 predict.csv
