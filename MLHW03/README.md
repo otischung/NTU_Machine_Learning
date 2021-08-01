@@ -32,7 +32,7 @@ score:
 
 ## ver.2 log
 
-Add augementation of training data
+Add argumentation of training data
 
 ```python
 train_tfm = transforms.Compose([
@@ -60,4 +60,44 @@ score:
 | Private score | Public score |
 | ------------- | ------------ |
 | 0.53078       | 0.55256      |
+
+## ver.3 log
+
+Add random rotation in training data transformation
+
+```python
+transforms.RandomRotation(degrees=(-45, 45), fill=0),
+```
+
+We notice that the model bias occurs after adding data argumentation. Thus, we use 4 convolution layers and 4 fully-connected layers to make model more complex.
+
+The result is
+
+**A: Without dropout**
+
+[ Train | 300/300 ] loss = 0.94674, acc = 0.68399, lr = 1.0000e-05
+
+[ Valid | 300/300 ] loss = 1.36975, acc = 0.63267
+
+Using model with best validation loss 1.23489 and accuracy 0.63864 to make prediction.
+
+score: 
+
+| Private score | Public score |
+| ------------- | ------------ |
+| 0.58517       | 0.59617      |
+
+**B: With dropout**
+
+[ Train | 912/1000 ] loss = 0.59849, acc = 0.81888, lr = 9.7207e-05
+
+[ Valid | 912/1000 ] loss = 1.26192, acc = 0.70170
+
+Using model with best validation loss 0.96319 and accuracy 0.71051 to make prediction.
+
+score: 
+
+| Private score | Public score |
+| ------------- | ------------ |
+| 0.71069       | 0.73178      |
 

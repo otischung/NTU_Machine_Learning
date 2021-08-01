@@ -34,6 +34,21 @@ import multiprocessing
 # This is for garbage collection
 import gc
 
+import os
+
+
+class Bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
 '''
 Dataset, Data Loader, and Transforms
 Torchvision provides lots of useful utilities for image preprocessing, data wrapping as well as data augmentation.
@@ -49,6 +64,7 @@ train_tfm = transforms.Compose([
     # You may add some transforms here.
     transforms.RandomHorizontalFlip(),
     transforms.RandomResizedCrop(128),
+    transforms.RandomRotation(degrees=(-45, 45), fill=0),
     transforms.ColorJitter(brightness=(0.5, 1.5), contrast=(0.5, 1.5), saturation=(0.5, 1.5), hue=(-0.1, 0.1)),
     transforms.RandomGrayscale(),
     # ToTensor() should be the last one of the transforms.
@@ -121,10 +137,23 @@ class Classifier(nn.Module):
             nn.Conv2d(128, 256, 3, 1, 1),  # [#, 256, 32, 32]
             nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.MaxPool2d(4, 4, 0),  # [#, 256, 8, 8]
+            nn.Dropout(p=0.15),
+            nn.MaxPool2d(2, 2, 0),  # [#, 256, 16, 16]
+
+            nn.Conv2d(256, 512, 3, 1, 1),  # [#, 512, 16, 16]
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            nn.Dropout(p=0.15),
+            nn.MaxPool2d(2, 2, 0),  # [#, 512, 8, 8]
         )
         self.fc_layers = nn.Sequential(  # fc = fully-connected
-            nn.Linear(256 * 8 * 8, 256),  # [#, 256]
+            nn.Linear(512 * 8 * 8, 4096),  # [#, 4096]
+            nn.ReLU(),
+            nn.Dropout(p=0.15),
+            nn.Linear(4096, 1024),  # [#, 1024]
+            nn.ReLU(),
+            nn.Dropout(p=0.15),
+            nn.Linear(1024, 256),  # [#, 1024]
             nn.ReLU(),
             nn.Linear(256, 256),  # [#, 256]
             nn.ReLU(),
@@ -199,18 +228,30 @@ model.device = device
 # For the classification task, we use cross-entropy as the measurement of performance.
 criterion = nn.CrossEntropyLoss()
 
-# Initialize optimizer, you may fine-tune some hyperparameters such as learning rate on your own.
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0003, weight_decay=1e-5)
-
 # The number of training epochs.
-n_epochs = 80
+n_epochs = 1000  # n_epochs must greater than 1
+start_lr = 1e-3
+end_lr = 1e-5
 
 # Whether to do semi-supervised learning.
 do_semi = False
 best_loss = 10000000.0
 best_acc = 0.0
+
+if os.path.isfile(model_path):
+    print(f"{model_path} exists, do you want to load the last model? (y/n)")
+    yn = input()
+    if yn == "y" or yn == "Y":
+        print("Loading last model")
+        model.load_state_dict(torch.load(model_path), strict=False)
 try:
     for epoch in range(n_epochs):
+        m = (end_lr - start_lr) / (n_epochs - 1)
+        k = start_lr - m
+        learning_rate = (m * (epoch + 1) + k)  # Adaptive learning rate
+        # Initialize optimizer, you may fine-tune some hyperparameters such as learning rate on your own.
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
+
         # ---------- TODO ----------
         # In each epoch, relabel the unlabeled dataset for semi-supervised learning.
         # Then you can combine the labeled dataset and pseudo-labeled dataset for the training.
@@ -267,7 +308,7 @@ try:
         train_acc = sum(train_accs) / len(train_accs)
 
         # Print the information.
-        print(f"[ Train | {epoch + 1:03d}/{n_epochs:03d} ] loss = {train_loss:.5f}, acc = {train_acc:.5f}")
+        print(f"\n[ Train | {epoch + 1:03d}/{n_epochs:03d} ] loss = {train_loss:.5f}, acc = {train_acc:.5f}, lr = {learning_rate:.4e}")
 
         # ---------- Validation ----------
         # Make sure the model is in eval mode so that some modules like dropout are disabled and work normally.
@@ -302,18 +343,18 @@ try:
         valid_acc = sum(valid_accs) / len(valid_accs)
 
         # Print the information.
-        print(f"[ Valid | {epoch + 1:03d}/{n_epochs:03d} ] loss = {valid_loss:.5f}, acc = {valid_acc:.5f}")
+        print(f"\n[ Valid | {epoch + 1:03d}/{n_epochs:03d} ] loss = {valid_loss:.5f}, acc = {valid_acc:.5f}")
 
         # if the model improves, save a checkpoint at this epoch
         if best_loss > valid_loss:
             best_loss = valid_loss
             best_acc = valid_acc
             torch.save(model.state_dict(), model_path)
-            print('Saving model with validation loss {:.5f} and accuracy {:.5f}'.format(best_loss, valid_acc))
+            print(f"\n{Bcolors.WARNING}Saving model with validation loss {best_loss:.5f} and accuracy {best_acc:.5f}{Bcolors.ENDC}")
 
         # gc.collect()  # Add garbage collection for each iteration of training loop
 except KeyboardInterrupt:
-    pass
+    print("stop!!!")
 '''
 Testing
 For inference, we need to make sure the model is in eval mode, and the order of the dataset should not be shuffled ("shuffle=False" in test_loader).
