@@ -101,3 +101,10 @@ score:
 | ------------- | ------------ |
 | 0.71069       | 0.73178      |
 
+## ver.4 log
+
+Add get_pseudo_labels, use unlabelled dataset.
+
+[ Train | 346/10000 ] loss = 0.84305, acc = 0.74333, lr = 9.6584e-04
+[ Valid | 346/10000 ] loss = 0.83500, acc = 0.74435
+Saving model with validation loss 0.83500 and accuracy 0.74435
