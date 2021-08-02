@@ -198,7 +198,7 @@ def get_pseudo_labels(dataset, model, threshold=0.65):
     # Define softmax function.
     softmax = nn.Softmax(dim=-1)
     # Iterate over the dataset by batches.
-    print("\ngenerate psudo labels...")
+    print("\ngenerate pseudo labels...")
     # t = 0
     for batch in tqdm(data_loader):
         # t += 1
