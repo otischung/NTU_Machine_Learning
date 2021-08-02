@@ -91,7 +91,7 @@ threads = 0
 # The argument "loader" tells how torchvision reads the data.
 train_set = DatasetFolder("./food-11/training/labeled", loader=lambda x: Image.open(x), extensions="jpg", transform=train_tfm)
 valid_set = DatasetFolder("./food-11/validation", loader=lambda x: Image.open(x), extensions="jpg", transform=test_tfm)
-unlabeled_set = DatasetFolder("./food-11/training/unlabeled", loader=lambda x: Image.open(x), extensions="jpg", transform=train_tfm)
+# unlabeled_set = DatasetFolder("./food-11/training/unlabeled", loader=lambda x: Image.open(x), extensions="jpg", transform=train_tfm)
 test_set = DatasetFolder("./food-11/testing", loader=lambda x: Image.open(x), extensions="jpg", transform=test_tfm)
 
 # Construct data loaders.
@@ -324,6 +324,7 @@ try:
         # In each epoch, relabel the unlabeled dataset for semi-supervised learning.
         # Then you can combine the labeled dataset and pseudo-labeled dataset for the training.
         if do_semi:
+            unlabeled_set = DatasetFolder("./food-11/training/unlabeled", loader=lambda x: Image.open(x), extensions="jpg", transform=train_tfm)
             # Obtain pseudo-labels for unlabeled data using trained model.
             pseudo_set = get_pseudo_labels(unlabeled_set, model)
 
