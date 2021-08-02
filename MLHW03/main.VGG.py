@@ -141,7 +141,7 @@ class Classifier(nn.Module):
             nn.Conv2d(128, 128, 3, 1, 1),  # [#, 128, 112, 112]
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            # nn.Dropout(),
+            nn.Dropout(p=0.15),
             nn.MaxPool2d(2, 2, 0),  # [#, 128, 56, 56]
 
             nn.Conv2d(128, 256, 3, 1, 1),  # [#, 256, 56, 56]
@@ -151,25 +151,25 @@ class Classifier(nn.Module):
             nn.Conv2d(256, 256, 3, 1, 1),  # [#, 256, 56, 56]
             nn.BatchNorm2d(256),
             nn.ReLU(),
-            # nn.Dropout(),
+            nn.Dropout(p=0.15),
             nn.Conv2d(256, 256, 3, 1, 1),  # [#, 256, 56, 56]
             nn.BatchNorm2d(256),
             nn.ReLU(),
-            # nn.Dropout(),
+            nn.Dropout(p=0.15),
             nn.MaxPool2d(2, 2, 0),  # [#, 256, 28, 28]
 
             nn.Conv2d(256, 512, 3, 1, 1),  # [#, 512, 28, 28]
             nn.BatchNorm2d(512),
             nn.ReLU(),
-            nn.Dropout(),
-            nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 28, 28]
-            nn.BatchNorm2d(512),
-            nn.ReLU(),
             # nn.Dropout(),
             nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 28, 28]
             nn.BatchNorm2d(512),
             nn.ReLU(),
-            # nn.Dropout(),
+            nn.Dropout(p=0.15),
+            nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 28, 28]
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            nn.Dropout(p=0.15),
             nn.MaxPool2d(2, 2, 0),  # [#, 512, 14, 14]
 
             nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 14, 14]
@@ -179,17 +179,17 @@ class Classifier(nn.Module):
             nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 14, 14]
             nn.BatchNorm2d(512),
             nn.ReLU(),
-            # nn.Dropout(),
+            nn.Dropout(p=0.15),
             nn.Conv2d(512, 512, 3, 1, 1),  # [#, 512, 14, 14]
             nn.BatchNorm2d(512),
             nn.ReLU(),
-            # nn.Dropout(),
+            nn.Dropout(p=0.15),
             nn.MaxPool2d(2, 2, 0),  # [#, 512, 7, 7]
         )
         self.fc_layers = nn.Sequential(  # fc = fully-connected
             nn.Linear(512 * 7 * 7, 4096),  # [#, 4096]
             nn.ReLU(),
-            # nn.Dropout(),
+            nn.Dropout(p=0.15),
             nn.Linear(4096, 1024),  # [#, 1024]
             nn.ReLU(),
             # nn.Dropout(),
