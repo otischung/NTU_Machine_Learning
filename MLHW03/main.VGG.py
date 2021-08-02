@@ -225,7 +225,7 @@ def get_pseudo_labels(dataset, model, threshold=0.65):
     # It returns an instance of DatasetFolder containing images whose prediction confidences exceed a given threshold.
     # You are NOT allowed to use any models trained on external data for pseudo-labeling.
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
+    labels = []
     # Construct a data loader.
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
@@ -233,10 +233,14 @@ def get_pseudo_labels(dataset, model, threshold=0.65):
     model.eval()
     # Define softmax function.
     softmax = nn.Softmax(dim=-1)
-
     # Iterate over the dataset by batches.
+    print("\ngenerate pseudo labels...")
+    # t = 0
     for batch in tqdm(data_loader):
-        img, _ = batch
+        # t += 1
+        # if t > 10:
+        #     break
+        img, label = batch
 
         # Forward the data
         # Using torch.no_grad() accelerates the forward process.
@@ -245,9 +249,34 @@ def get_pseudo_labels(dataset, model, threshold=0.65):
 
         # Obtain the probability distributions by applying softmax on logits.
         probs = softmax(logits)
+        for p in probs:
+            if torch.max(p) > threshold:
+                labels.append(torch.argmax(p).cpu().numpy().item())
+            else:
+                labels.append(-1)
 
-        # ---------- TODO ----------
-        # Filter the data and construct a new dataset.
+    print("\ndata set len", len(dataset.samples))
+    print("label len", len(labels))
+    print("#############################################")
+    for i, sample in enumerate(dataset.samples):
+        try:
+            if labels[i] == -1:
+                continue
+            else:
+                dataset.samples[i] = (sample[0], labels[i])
+        except:
+            dataset.samples.remove(sample)
+    rm_list = []
+    for i, sample in enumerate(dataset.samples):
+        if i >= len(labels) or labels[i] == -1:
+            rm_list.append(sample)
+    # print(rm_list)
+    for i in rm_list:
+        dataset.samples.remove(i)
+    # print("#####", dataset.samples)
+
+    # ---------- TODO ----------
+    # Filter the data and construct a new dataset.
 
     # # Turn off the eval mode.
     model.train()
@@ -268,12 +297,12 @@ criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, weight_decay=1e-5)
 
 # The number of training epochs.
-n_epochs = 3000
+n_epochs = 30000
 start_lr = 1e-3
 end_lr = 1e-5
 
 # Whether to do semi-supervised learning.
-do_semi = False
+do_semi = True
 best_loss = 10000000.0
 best_acc = 0.0
 
