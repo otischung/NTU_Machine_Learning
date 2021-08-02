@@ -83,7 +83,7 @@ test_tfm = transforms.Compose([
 # Batch size for training, validation, and testing.
 # A greater batch size usually gives a more stable gradient.
 # But the GPU memory is limited, so please adjust it carefully.
-batch_size = 64
+batch_size = 32
 # threads = multiprocessing.cpu_count()
 threads = 0
 
@@ -91,7 +91,7 @@ threads = 0
 # The argument "loader" tells how torchvision reads the data.
 train_set = DatasetFolder("./food-11/training/labeled", loader=lambda x: Image.open(x), extensions="jpg", transform=train_tfm)
 valid_set = DatasetFolder("./food-11/validation", loader=lambda x: Image.open(x), extensions="jpg", transform=test_tfm)
-unlabeled_set = DatasetFolder("./food-11/training/unlabeled", loader=lambda x: Image.open(x), extensions="jpg", transform=train_tfm)
+# unlabeled_set = DatasetFolder("./food-11/training/unlabeled", loader=lambda x: Image.open(x), extensions="jpg", transform=train_tfm)
 test_set = DatasetFolder("./food-11/testing", loader=lambda x: Image.open(x), extensions="jpg", transform=test_tfm)
 
 # Construct data loaders.
@@ -189,7 +189,7 @@ def get_pseudo_labels(dataset, model, threshold=0.65):
     # It returns an instance of DatasetFolder containing images whose prediction confidences exceed a given threshold.
     # You are NOT allowed to use any models trained on external data for pseudo-labeling.
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
+    labels = []
     # Construct a data loader.
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
@@ -197,10 +197,14 @@ def get_pseudo_labels(dataset, model, threshold=0.65):
     model.eval()
     # Define softmax function.
     softmax = nn.Softmax(dim=-1)
-
     # Iterate over the dataset by batches.
+    print("\ngenerate psudo labels...")
+    # t = 0
     for batch in tqdm(data_loader):
-        img, _ = batch
+        # t += 1
+        # if t > 10:
+        #     break
+        img, label = batch
 
         # Forward the data
         # Using torch.no_grad() accelerates the forward process.
@@ -209,9 +213,34 @@ def get_pseudo_labels(dataset, model, threshold=0.65):
 
         # Obtain the probability distributions by applying softmax on logits.
         probs = softmax(logits)
+        for p in probs:
+            if torch.max(p) > threshold:
+                labels.append(torch.argmax(p).cpu().numpy().item())
+            else:
+                labels.append(-1)
 
-        # ---------- TODO ----------
-        # Filter the data and construct a new dataset.
+    print("\ndata set len", len(dataset.samples))
+    print("label len", len(labels))
+    print("#############################################")
+    for i, sample in enumerate(dataset.samples):
+        try:
+            if labels[i] == -1:
+                continue
+            else:
+                dataset.samples[i] = (sample[0], labels[i])
+        except:
+            dataset.samples.remove(sample)
+    rm_list = []
+    for i, sample in enumerate(dataset.samples):
+        if i >= len(labels) or labels[i] == -1:
+            rm_list.append(sample)
+    # print(rm_list)
+    for i in rm_list:
+        dataset.samples.remove(i)
+    # print("#####", dataset.samples)
+
+    # ---------- TODO ----------
+    # Filter the data and construct a new dataset.
 
     # # Turn off the eval mode.
     model.train()
@@ -229,12 +258,12 @@ model.device = device
 criterion = nn.CrossEntropyLoss()
 
 # The number of training epochs.
-n_epochs = 1000  # n_epochs must greater than 1
+n_epochs = 10000  # n_epochs must greater than 1
 start_lr = 1e-3
 end_lr = 1e-5
 
 # Whether to do semi-supervised learning.
-do_semi = False
+do_semi = True
 best_loss = 10000000.0
 best_acc = 0.0
 
@@ -256,6 +285,7 @@ try:
         # In each epoch, relabel the unlabeled dataset for semi-supervised learning.
         # Then you can combine the labeled dataset and pseudo-labeled dataset for the training.
         if do_semi:
+            unlabeled_set = DatasetFolder("./food-11/training/unlabeled", loader=lambda x: Image.open(x), extensions="jpg", transform=train_tfm)
             # Obtain pseudo-labels for unlabeled data using trained model.
             pseudo_set = get_pseudo_labels(unlabeled_set, model)
 
@@ -349,8 +379,8 @@ try:
         if best_loss > valid_loss:
             best_loss = valid_loss
             best_acc = valid_acc
-            torch.save(model.state_dict(), model_path)
             print(f"\n{Bcolors.WARNING}Saving model with validation loss {best_loss:.5f} and accuracy {best_acc:.5f}{Bcolors.ENDC}")
+            torch.save(model.state_dict(), model_path)
 
         # gc.collect()  # Add garbage collection for each iteration of training loop
 except KeyboardInterrupt:

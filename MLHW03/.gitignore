@@ -3,5 +3,6 @@
 food-11
 model.VGG.ckpt
 model.ckpt
+model.ver.3.ckpt
 predict.VGG.csv
 predict.csv
