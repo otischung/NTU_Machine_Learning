@@ -16,6 +16,19 @@ from tqdm.notebook import tqdm
 
 ''' https://colab.research.google.com/github/ga642381/ML2021-Spring/blob/main/HW04/HW04.ipynb#scrollTo=oAinHBG1GIWv '''
 
+
+class Bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
 '''
 Dataset
 
@@ -169,7 +182,11 @@ class Classifier(nn.Module):
 
         # Project the the dimension of features from d_model into speaker nums.
         self.pred_layer = nn.Sequential(
-            nn.Linear(d_model, d_model),
+            nn.Linear(d_model, d_model * 2),
+            nn.ReLU(),
+            nn.Linear(d_model * 2, d_model * 2),
+            nn.ReLU(),
+            nn.Linear(d_model * 2, d_model),
             nn.ReLU(),
             nn.Linear(d_model, n_spks),
         )
@@ -320,9 +337,9 @@ def parse_main_args():
         "save_path": "model.ckpt",
         "batch_size": 512,
         "n_workers": 0,
-        "valid_steps": 2000,
-        "warmup_steps": 1000,
-        "save_steps": 10000,
+        "valid_steps": 20,
+        "warmup_steps": 10,
+        "save_steps": 100,
         "total_steps": 70000,
     }
 
@@ -354,6 +371,7 @@ def main(
     print(f"[Info]: Finish creating model!", flush=True)
 
     best_accuracy = -1.0
+    best_loss = 100000000.0
     best_state_dict = None
 
     pbar = tqdm(total=valid_steps, ncols=0, desc="Train", unit=" step")
@@ -370,7 +388,7 @@ def main(
         batch_loss = loss.item()
         batch_accuracy = accuracy.item()
 
-        # Updata model
+        # Update model
         loss.backward()
         optimizer.step()
         scheduler.step()
@@ -403,6 +421,91 @@ def main(
             pbar.write(f"Step {step + 1}, best model saved. (accuracy={best_accuracy:.4f})")
 
     pbar.close()
+
+    # for step in range(total_steps):
+    #     # ---------- Training ----------
+    #     # Make sure the model is in train mode before training.
+    #     model.train()
+    #
+    #     # These are used to record information in training.
+    #     train_loss = []
+    #     train_accs = []
+    #
+    #     # Iterate the training set by batches.
+    #     for batch in tqdm(train_loader):
+    #         voices, labels = batch
+    #
+    #         # Forward the data. (Make sure data and model are on the same device.)
+    #         logits = model(voices.to(device))
+    #
+    #         # Calculate the cross-entropy loss.
+    #         # We don't need to apply softmax before computing cross-entropy as it is done automatically.
+    #         loss = criterion(logits, labels.to(device))
+    #
+    #         # Gradients stored in the parameters in the previous step should be cleared out first.
+    #         optimizer.zero_grad()
+    #
+    #         # Compute the gradients for parameters.
+    #         loss.backward()
+    #
+    #         # Update the parameters with computed gradients.
+    #         optimizer.step()
+    #
+    #         # Compute the accuracy for current batch.
+    #         acc = (logits.argmax(dim=-1) == labels.to(device)).float().mean()
+    #
+    #         # Record the loss and accuracy.
+    #         train_loss.append(loss.item())  # add detach()
+    #         train_accs.append(acc)
+    #
+    #     # The average loss and accuracy of the training set is the average of the recorded values.
+    #     train_loss = sum(train_loss) / len(train_loss)
+    #     train_acc = sum(train_accs) / len(train_accs)
+    #
+    #     # Print the information.
+    #     print(f"\n[ Train | {step + 1:03d}/{total_steps:03d} ] loss = {train_loss:.5f}, acc = {train_acc:.5f}")
+    #
+    #     # ---------- Validation ----------
+    #     # Make sure the model is in eval mode so that some modules like dropout are disabled and work normally.
+    #     model.eval()
+    #
+    #     # These are used to record information in validation.
+    #     valid_loss = []
+    #     valid_accs = []
+    #
+    #     # Iterate the validation set by batches.
+    #     for batch in tqdm(valid_loader):
+    #         # A batch consists of image data and corresponding labels.
+    #         voices, labels = batch
+    #
+    #         # We don't need gradient in validation.
+    #         # Using torch.no_grad() accelerates the forward process.
+    #         with torch.no_grad():
+    #             logits = model(voices.to(device))
+    #
+    #         # We can still compute the loss (but not the gradient).
+    #         loss = criterion(logits, labels.to(device))
+    #
+    #         # Compute the accuracy for current batch.
+    #         acc = (logits.argmax(dim=-1) == labels.to(device)).float().mean()
+    #
+    #         # Record the loss and accuracy.
+    #         valid_loss.append(loss.detach().item())  # add detach()
+    #         valid_accs.append(acc)
+    #
+    #     # The average loss and accuracy for entire validation set is the average of the recorded values.
+    #     valid_loss = sum(valid_loss) / len(valid_loss)
+    #     valid_acc = sum(valid_accs) / len(valid_accs)
+    #
+    #     # Print the information.
+    #     print(f"\n[ Valid | {step + 1:03d}/{total_steps:03d} ] loss = {valid_loss:.5f}, acc = {valid_acc:.5f}")
+    #
+    #     # if the model improves, save a checkpoint at this epoch
+    #     if best_loss > valid_loss:
+    #         best_loss = valid_loss
+    #         best_acc = valid_acc
+    #         print(f"\n{Bcolors.WARNING}Saving model with validation loss {best_loss:.5f} and accuracy {best_acc:.5f}{Bcolors.ENDC}")
+    #         torch.save(model.state_dict(), save_path)
 
 
 if __name__ == "__main__":
