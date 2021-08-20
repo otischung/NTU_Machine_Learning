@@ -1,0 +1,5 @@
+.idea
+.vscode
+DATA
+fairseq
+model.ckpt
