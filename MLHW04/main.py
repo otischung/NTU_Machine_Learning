@@ -1,3 +1,4 @@
+import conformer
 import csv
 import math
 import json
@@ -176,7 +177,7 @@ class Classifier(nn.Module):
         #   Change Transformer to Conformer.
         #   https://arxiv.org/abs/2005.08100
         self.encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, dim_feedforward=256, nhead=2
+            d_model=d_model, nhead=2, dim_feedforward=256
         )
         # self.encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
 
@@ -184,11 +185,9 @@ class Classifier(nn.Module):
         self.pred_layer = nn.Sequential(
             nn.Linear(d_model, d_model * 2),
             nn.ReLU(),
-            nn.Linear(d_model * 2, d_model * 2),
+            nn.Linear(d_model * 2, d_model * 4),
             nn.ReLU(),
-            nn.Linear(d_model * 2, d_model),
-            nn.ReLU(),
-            nn.Linear(d_model, n_spks),
+            nn.Linear(d_model * 4, n_spks),
         )
 
     def forward(self, mels):
@@ -305,7 +304,7 @@ def valid(dataloader, model, criterion, device):
     model.eval()
     running_loss = 0.0
     running_accuracy = 0.0
-    pbar = tqdm(total=len(dataloader.dataset), ncols=0, desc="Valid", unit=" uttr")
+    # pbar = tqdm(total=len(dataloader.dataset), ncols=0, desc="Valid", unit=" uttr")
 
     for i, batch in enumerate(dataloader):
         with torch.no_grad():
@@ -313,16 +312,16 @@ def valid(dataloader, model, criterion, device):
             running_loss += loss.item()
             running_accuracy += accuracy.item()
 
-        pbar.update(dataloader.batch_size)
-        pbar.set_postfix(
-            loss=f"{running_loss / (i + 1):.2f}",
-            accuracy=f"{running_accuracy / (i + 1):.2f}",
-        )
+        # pbar.update(dataloader.batch_size)
+        # pbar.set_postfix(
+        #     loss=f"{running_loss / (i + 1):.2f}",
+        #     accuracy=f"{running_accuracy / (i + 1):.2f}",
+        # )
 
-    pbar.close()
+    # pbar.close()
     model.train()
 
-    return running_accuracy / len(dataloader)
+    return running_loss / len(dataloader), running_accuracy / len(dataloader)
 
 
 '''
@@ -335,12 +334,12 @@ def parse_main_args():
     config = {
         "data_dir": "./Dataset",
         "save_path": "model.ckpt",
-        "batch_size": 512,
+        "batch_size": 1024,
         "n_workers": 0,
-        "valid_steps": 20,
+        "valid_steps": 100,
         "warmup_steps": 10,
         "save_steps": 100,
-        "total_steps": 70000,
+        "total_steps": 100000,
     }
 
     return config
@@ -370,142 +369,80 @@ def main(
     scheduler = get_cosine_schedule_with_warmup(optimizer, warmup_steps, total_steps)
     print(f"[Info]: Finish creating model!", flush=True)
 
+    if os.path.isfile(save_path):
+        print(f"{save_path} exists, do you want to load the last model? (y/n)")
+        yn = input()
+        if yn == "y" or yn == "Y":
+            print("Loading last model")
+            model.load_state_dict(torch.load(save_path), strict=False)
+
     best_accuracy = -1.0
     best_loss = 100000000.0
-    best_state_dict = None
 
-    pbar = tqdm(total=valid_steps, ncols=0, desc="Train", unit=" step")
+    # pbar = tqdm(total=valid_steps, ncols=0, desc="Train", unit=" step")
 
-    for step in range(total_steps):
-        # Get data
-        try:
-            batch = next(train_iterator)
-        except StopIteration:
-            train_iterator = iter(train_loader)
-            batch = next(train_iterator)
+    try:
+        for step in range(total_steps):
+            # Get data
+            try:
+                batch = next(train_iterator)
+            except StopIteration:
+                train_iterator = iter(train_loader)
+                batch = next(train_iterator)
 
-        loss, accuracy = model_fn(batch, model, criterion, device)
-        batch_loss = loss.item()
-        batch_accuracy = accuracy.item()
+            best_state_dict = None
+            loss, accuracy = model_fn(batch, model, criterion, device)
+            batch_loss = loss.item()
+            batch_accuracy = accuracy.item()
 
-        # Update model
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
+            # Update model
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
 
-        # Log
-        pbar.update()
-        pbar.set_postfix(
-            loss=f"{batch_loss:.2f}",
-            accuracy=f"{batch_accuracy:.2f}",
-            step=step + 1,
-        )
+            # Log
+            # pbar.update()
+            # pbar.set_postfix(
+            #     loss=f"{batch_loss:.2f}",
+            #     accuracy=f"{batch_accuracy:.2f}",
+            #     step=step + 1,
+            # )
 
-        # Do validation
-        if (step + 1) % valid_steps == 0:
-            pbar.close()
+            print(f"\r[ Train | {step + 1:03d}/{total_steps:03d} ] loss = {loss:.5f}, acc = {accuracy:.5f}", flush=True, end=' ')
 
-            valid_accuracy = valid(valid_loader, model, criterion, device)
+            # Do validation
+            if (step + 1) % valid_steps == 0:
+                # pbar.close()
 
-            # keep the best model
-            if valid_accuracy > best_accuracy:
-                best_accuracy = valid_accuracy
-                best_state_dict = model.state_dict()
+                valid_loss, valid_accuracy = valid(valid_loader, model, criterion, device)
+                print(f"\n[ Valid | {step + 1:03d}/{total_steps:03d} ] loss = {valid_loss:.5f}, acc = {valid_accuracy:.5f}")
 
-            pbar = tqdm(total=valid_steps, ncols=0, desc="Train", unit=" step")
+                # keep the best model
+                # if best_accuracy < valid_accuracy:
+                #     best_accuracy = valid_accuracy
+                #     best_state_dict = model.state_dict()
 
-        # Save the best model so far.
-        if (step + 1) % save_steps == 0 and best_state_dict is not None:
-            torch.save(best_state_dict, save_path)
-            pbar.write(f"Step {step + 1}, best model saved. (accuracy={best_accuracy:.4f})")
+                if best_loss > valid_loss:
+                    best_loss = valid_loss
+                    best_accuracy = valid_accuracy
+                    best_state_dict = model.state_dict()
 
-    pbar.close()
+                # pbar = tqdm(total=valid_steps, ncols=0, desc="Train", unit=" step")
 
-    # for step in range(total_steps):
-    #     # ---------- Training ----------
-    #     # Make sure the model is in train mode before training.
-    #     model.train()
-    #
-    #     # These are used to record information in training.
-    #     train_loss = []
-    #     train_accs = []
-    #
-    #     # Iterate the training set by batches.
-    #     for batch in tqdm(train_loader):
-    #         voices, labels = batch
-    #
-    #         # Forward the data. (Make sure data and model are on the same device.)
-    #         logits = model(voices.to(device))
-    #
-    #         # Calculate the cross-entropy loss.
-    #         # We don't need to apply softmax before computing cross-entropy as it is done automatically.
-    #         loss = criterion(logits, labels.to(device))
-    #
-    #         # Gradients stored in the parameters in the previous step should be cleared out first.
-    #         optimizer.zero_grad()
-    #
-    #         # Compute the gradients for parameters.
-    #         loss.backward()
-    #
-    #         # Update the parameters with computed gradients.
-    #         optimizer.step()
-    #
-    #         # Compute the accuracy for current batch.
-    #         acc = (logits.argmax(dim=-1) == labels.to(device)).float().mean()
-    #
-    #         # Record the loss and accuracy.
-    #         train_loss.append(loss.item())  # add detach()
-    #         train_accs.append(acc)
-    #
-    #     # The average loss and accuracy of the training set is the average of the recorded values.
-    #     train_loss = sum(train_loss) / len(train_loss)
-    #     train_acc = sum(train_accs) / len(train_accs)
-    #
-    #     # Print the information.
-    #     print(f"\n[ Train | {step + 1:03d}/{total_steps:03d} ] loss = {train_loss:.5f}, acc = {train_acc:.5f}")
-    #
-    #     # ---------- Validation ----------
-    #     # Make sure the model is in eval mode so that some modules like dropout are disabled and work normally.
-    #     model.eval()
-    #
-    #     # These are used to record information in validation.
-    #     valid_loss = []
-    #     valid_accs = []
-    #
-    #     # Iterate the validation set by batches.
-    #     for batch in tqdm(valid_loader):
-    #         # A batch consists of image data and corresponding labels.
-    #         voices, labels = batch
-    #
-    #         # We don't need gradient in validation.
-    #         # Using torch.no_grad() accelerates the forward process.
-    #         with torch.no_grad():
-    #             logits = model(voices.to(device))
-    #
-    #         # We can still compute the loss (but not the gradient).
-    #         loss = criterion(logits, labels.to(device))
-    #
-    #         # Compute the accuracy for current batch.
-    #         acc = (logits.argmax(dim=-1) == labels.to(device)).float().mean()
-    #
-    #         # Record the loss and accuracy.
-    #         valid_loss.append(loss.detach().item())  # add detach()
-    #         valid_accs.append(acc)
-    #
-    #     # The average loss and accuracy for entire validation set is the average of the recorded values.
-    #     valid_loss = sum(valid_loss) / len(valid_loss)
-    #     valid_acc = sum(valid_accs) / len(valid_accs)
-    #
-    #     # Print the information.
-    #     print(f"\n[ Valid | {step + 1:03d}/{total_steps:03d} ] loss = {valid_loss:.5f}, acc = {valid_acc:.5f}")
-    #
-    #     # if the model improves, save a checkpoint at this epoch
-    #     if best_loss > valid_loss:
-    #         best_loss = valid_loss
-    #         best_acc = valid_acc
-    #         print(f"\n{Bcolors.WARNING}Saving model with validation loss {best_loss:.5f} and accuracy {best_acc:.5f}{Bcolors.ENDC}")
-    #         torch.save(model.state_dict(), save_path)
+            # Save the best model so far.
+            if (step + 1) % save_steps == 0 and best_state_dict is not None:
+                torch.save(best_state_dict, save_path)
+                # pbar.write(f"Step {step + 1}, best model saved. (accuracy={best_accuracy:.4f})")
+                print(f"Step {step + 1}, best model saved. (loss = {best_loss:.4f}, accuracy = {best_accuracy:.4f})")
+
+            if (step + 1) % valid_steps == 0:
+                print("\n")
+
+    except KeyboardInterrupt:
+        print("stop training!!!")
+
+    # pbar.close()
 
 
 if __name__ == "__main__":
