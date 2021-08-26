@@ -22,3 +22,7 @@ Framewise phoneme prediction from speech.
 
 Food classification using Convolutional Neural Network.
 
+### HW04: Self-Attention
+
+Speaker classification
+
