@@ -1,5 +1,5 @@
 git clone https://github.com/pytorch/fairseq.git
-cd fairseq && git checkout 9a1c497
+cd fairseq && git checkout 9a1c497 && cd ..
 pip install --upgrade ./fairseq/
 
 cd ..

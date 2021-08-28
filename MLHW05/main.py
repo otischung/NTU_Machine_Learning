@@ -325,6 +325,11 @@ Dataset Iterator
     teacher forcing: 為了訓練模型根據prefix生成下個字，decoder的輸入會是輸出目標序列往右shift一格。
     一般是會在輸入開頭加個bos token
     fairseq 則是直接把 eos 挪到 beginning，訓練起來效果其實差不多。例如:
+    
+    輸出目標 (target) 和 Decoder輸入 (prev_output_tokens): 
+                eos = 2
+              target = 419,  711,  238,  888,  792,   60,  968,    8,    2
+    prev_output_tokens = 2,  419,  711,  238,  888,  792,   60,  968,    8
 '''
 
 
@@ -353,7 +358,8 @@ demo_iter = demo_epoch_obj.next_epoch_itr(shuffle=True)
 sample = next(demo_iter)
 sample
 
-# 每個 batch 是一個字典，key 是字串，value 是 Tensor，內容說明如下
+'''
+每個 batch 是一個字典，key 是字串，value 是 Tensor，內容說明如下
 batch = {
   "id": id, # 每個 example 的 id
   "nsentences": len(samples), # batch size 句子數
@@ -365,6 +371,7 @@ batch = {
   },
   "target": target, # 目標序列
 }
+'''
 
 '''
 定義模型架構
@@ -523,20 +530,6 @@ class AttentionLayer(nn.Module):
         attn_scores = F.softmax(attn_scores, dim=-1)
 
         # 形狀 (B, T, S) x (B, S, dim) = (B, T, dim) 加權平均
-        x = torch.bmm(attn_scores, encoder_outputs)
-
-        # (B, T, dim)class AttentionLayer(nn.Module):
-
-    def __init__(self, input_embed_dim, source_embed_dim, output_embed_dim, bias=False):
-        super().__init__()
-
-        self.input_proj = nn.Linear(input_embed_dim, source_embed_dim, bias=bias)
-        self.output_proj = nn.Linear(
-            input_embed_dim + source_embed_dim, output_embed_dim, bias=bias
-        )
-
-    def forward(self, inputs, encoder_outputs, encoder_padding_mask):
-
         x = torch.bmm(attn_scores, encoder_outputs)
 
         # (B, T, dim)
@@ -1134,26 +1127,12 @@ def validate_and_save(model, task, criterion, optimizer, epoch, save=True):
 
 def try_load_checkpoint(model, optimizer=None, name=None):
     name = name if name else "checkpoint_last.pt"
-    checkpath = Path(config.savedir) / name
+    checkpath = Path(config.savedir)/name
     if checkpath.exists():
         check = torch.load(checkpath)
         model.load_state_dict(check["model"])
         stats = check["stats"]
         step = "unknown"
-
-
-def validate_and_save(model, task, criterion, optimizer, epoch, save=True):
-    stats = validate(model, task, criterion)
-    bleu = stats['bleu']
-    loss = stats['loss']
-    if save:
-        # save epoch checkpoints
-        savedir = Path(config.savedir).absolute()
-        savedir.mkdir(parents=True, exist_ok=True)
-
-        check = {
-            stats: check["stats"]
-        }
         if optimizer != None:
             optimizer._step = step = check["optim"]["step"]
         logger.info(f"loaded checkpoint {checkpath}: step={step} loss={stats['loss']} bleu={stats['bleu']}")
@@ -1189,3 +1168,54 @@ while epoch_itr.next_epoch_idx <= config.max_epoch:
     stats = validate_and_save(model, task, criterion, optimizer, epoch=epoch_itr.epoch)
     logger.info("end of epoch {}".format(epoch_itr.epoch))
     epoch_itr = load_data_iterator(task, "train", epoch_itr.next_epoch_idx, config.max_tokens, config.num_workers)
+
+''' Submission 繳交檔案 '''
+# 把幾個 checkpoint 平均起來可以達到 ensemble 的效果
+checkdir=config.savedir
+os.system("python ./fairseq/scripts/average_checkpoints.py \
+--inputs {checkdir} \
+--num-epoch-checkpoints 5 \
+--output {checkdir}/avg_last_5_checkpoint.pt")
+
+''' 確認生成繳交檔案的模型參數 '''
+# checkpoint_last.pt : 最後一次檢驗的檔案
+# checkpoint_best.pt : 檢驗 BLEU 最高的檔案
+# avg_last_5_checkpoint.pt:　最5後個檔案平均
+try_load_checkpoint(model, name="avg_last_5_checkpoint.pt")
+validate(model, task, criterion, log_to_wandb=False)
+None
+
+''' 進行預測 '''
+
+
+def generate_prediction(model, task, split="test", outfile="./prediction.txt"):
+    task.load_dataset(split=split, epoch=1)
+    itr = load_data_iterator(task, split, 1, config.max_tokens, config.num_workers).next_epoch_itr(shuffle=False)
+
+    idxs = []
+    hyps = []
+
+    model.eval()
+    progress = tqdm.tqdm(itr, desc=f"prediction")
+    with torch.no_grad():
+        for i, sample in enumerate(progress):
+            # validation loss
+            sample = utils.move_to_cuda(sample, device=device)
+
+            # 進行推論
+            s, h, r = inference_step(sample, model)
+
+            hyps.extend(h)
+            idxs.extend(list(sample['id']))
+
+    # 根據 preprocess 時的順序排列
+    hyps = [x for _, x in sorted(zip(idxs, hyps))]
+
+    with open(outfile, "w") as f:
+        for h in hyps:
+            f.write(h + "\n")
+
+
+generate_prediction(model, task)
+
+
