@@ -2,5 +2,6 @@
 .vscode
 checkpoints
 faces
+images.tgz
 logs
 output
