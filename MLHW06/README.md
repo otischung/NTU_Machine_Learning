@@ -16,3 +16,9 @@ If the checkpoints exist, asks if you want to load the last model
 
 Use plt.draw to prevent blocking the process when showing the image.
 
+## ver.1 log
+
+Tune:
+batch_size = 16
+n_epoch = 1000
+n_critic = 1

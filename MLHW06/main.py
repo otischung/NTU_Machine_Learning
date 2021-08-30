@@ -95,13 +95,13 @@ dataset = get_dataset(os.path.join(workspace_dir, 'faces'))
 
 images = [dataset[i] for i in range(16)]
 grid_img = torchvision.utils.make_grid(images, nrow=4)
-plt.figure(figsize=(10,10))
+plt.figure(figsize=(10, 10))
 plt.imshow(grid_img.permute(1, 2, 0))
 plt.show()
 
 images = [(dataset[i]+1)/2 for i in range(16)]
 grid_img = torchvision.utils.make_grid(images, nrow=4)
-plt.figure(figsize=(10,10))
+plt.figure(figsize=(10, 10))
 plt.imshow(grid_img.permute(1, 2, 0))
 plt.show()
 
@@ -204,14 +204,14 @@ Initialization
 '''
 
 # Training hyperparameters
-batch_size = 64
+batch_size = 16  # 64
 z_dim = 100
 z_sample = Variable(torch.randn(100, z_dim)).cuda()
-lr = 1e-4
+lr = 5e-4  # 1e-4
 
 """ Medium: WGAN, 50 epoch, n_critic=5, clip_value=0.01 """
-n_epoch = 50  # 1
-n_critic = 5  # 1
+n_epoch = 1000  # 1
+n_critic = 1  # 1
 # clip_value = 0.01
 
 log_dir = os.path.join(workspace_dir, 'logs')
@@ -304,7 +304,7 @@ try:
 
             """ Medium: Clip weights of discriminator. """
             # for p in D.parameters():
-            #    p.data.clamp_(-clip_value, clip_value)
+            #     p.data.clamp_(-clip_value, clip_value)
 
             # ============================================
             #  Train G
@@ -317,7 +317,7 @@ try:
                 # Model forwarding
                 f_logit = D(f_imgs)
 
-                """ Medium: Use WGAN Loss"""
+                """ Medium: Use WGAN Loss """
                 # Compute the loss for the generator.
                 loss_G = criterion(f_logit, r_label)
                 # WGAN Loss
@@ -350,12 +350,12 @@ try:
         print(f' | Save some samples to {filename}.', flush=True)
 
         # Show generated images in the jupyter notebook.
-        grid_img = torchvision.utils.make_grid(f_imgs_sample.cpu(), nrow=10)
-        plt.figure(figsize=(10, 10))
-        plt.imshow(grid_img.permute(1, 2, 0))
-        plt.draw()  # Don't show while training
-        # plt.show()  # If you want to see the results of every epochs, uncomment it.
-        G.train()
+        # grid_img = torchvision.utils.make_grid(f_imgs_sample.cpu(), nrow=10)
+        # plt.figure(figsize=(10, 10))
+        # plt.imshow(grid_img.permute(1, 2, 0))
+        # plt.draw()  # Don't show while training
+        # # plt.show()  # If you want to see the results of every epochs, uncomment it.
+        # G.train()
 
         # Save the checkpoints.
         # print("Saving the model of Generator...", flush=True)
@@ -372,7 +372,7 @@ try:
 except KeyboardInterrupt:
     print("stop training!!!")
 
-plt.show()  # Show the results of every epochs.
+# plt.show()  # Show the results of every epochs.
 
 '''
 Inference
