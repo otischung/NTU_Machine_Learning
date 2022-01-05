@@ -1,5 +1,6 @@
 .idea
 .vscode
+venv
 food-11
 model.VGG.ckpt
 model.ckpt
